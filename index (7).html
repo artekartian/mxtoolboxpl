@@ -1,0 +1,2688 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DMARC dla firm – ochrona domeny przed podszywaniem | Valcreon</title>
+  <meta name="description" content="Sprawdzamy konfigurację DMARC, SPF i DKIM oraz pokazujemy, czy ktoś może podszyć się pod Twoją firmę w e-mailu. Bezpieczne wdrożenie ochrony domeny dla firm.">
+  <link rel="icon" href="fav.ico">
+
+  <style>
+    /* =========================================================
+       01. Base
+       ========================================================= */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #05070d;
+      --text: #f4f7fb;
+      --muted: #9aa6b8;
+      --line: rgba(255,255,255,.105);
+      --cyan: #22d3ee;
+      --blue: #60a5fa;
+      --violet: #8b5cf6;
+      --green: #34d399;
+      --red: #fb7185;
+      --max: 1180px;
+      --hdr: 74px;
+      --radius: 24px;
+      --grad: linear-gradient(135deg,#22d3ee 0%,#60a5fa 46%,#8b5cf6 100%);
+      --shadow: 0 28px 90px rgba(0,0,0,.42);
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: calc(var(--hdr) + 20px);
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -3;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 14% 8%, rgba(34,211,238,.13), transparent 28%),
+        radial-gradient(circle at 86% 12%, rgba(139,92,246,.16), transparent 32%),
+        radial-gradient(circle at 50% 96%, rgba(96,165,250,.10), transparent 34%),
+        linear-gradient(180deg, #05070d 0%, #07101d 46%, #04060b 100%);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      opacity: .17;
+      background-image:
+        linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+      background-size: 96px 96px;
+      mask-image: linear-gradient(180deg, black 0%, transparent 76%);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .wrap {
+      width: min(var(--max), calc(100% - 48px));
+      margin: 0 auto;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity .6s ease, transform .6s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* =========================================================
+       02. Header and navigation
+       ========================================================= */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: var(--hdr);
+      display: flex;
+      align-items: center;
+      background: rgba(5,7,13,.8);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      font-weight: 850;
+      letter-spacing: -.03em;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 13px;
+      background: var(--grad);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.16) inset, 0 0 34px rgba(34,211,238,.18);
+      font-size: .83rem;
+      font-weight: 900;
+    }
+
+    .brand-name {
+      font-size: 1.06rem;
+      white-space: nowrap;
+    }
+
+    .brand-name span {
+      color: #7dd3fc;
+    }
+
+    .navlinks {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 6px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 999px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .navlinks a {
+      padding: 9px 13px;
+      border-radius: 999px;
+      color: #a8b3c5;
+      font-size: .88rem;
+      font-weight: 650;
+    }
+
+    .navlinks a:hover {
+      background: rgba(255,255,255,.075);
+      color: #fff;
+    }
+
+    .cta-small {
+      padding: 10px 15px;
+      border: 1px solid rgba(34,211,238,.22);
+      border-radius: 999px;
+      background: rgba(34,211,238,.075);
+      color: #dffaff;
+      font-size: .88rem;
+      font-weight: 800;
+    }
+
+    .menu-btn {
+      display: none;
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      background: rgba(255,255,255,.055);
+      color: #fff;
+      cursor: pointer;
+      transition: background .18s ease, border-color .18s ease, transform .18s ease;
+    }
+
+    .menu-btn span,
+    .menu-btn span::before,
+    .menu-btn span::after {
+      content: "";
+      display: block;
+      width: 19px;
+      height: 2px;
+      position: relative;
+      border-radius: 999px;
+      background: #fff;
+      transition: .22s;
+    }
+
+    .menu-btn span::before {
+      position: absolute;
+      top: -6px;
+    }
+
+    .menu-btn span::after {
+      position: absolute;
+      top: 6px;
+    }
+
+    .menu-btn.active {
+      background: rgba(255,255,255,.075);
+      border-color: rgba(255,255,255,.16);
+    }
+
+    .menu-btn.active span {
+      background: transparent;
+    }
+
+    .menu-btn.active span::before {
+      top: 0;
+      transform: rotate(45deg);
+    }
+
+    .menu-btn.active span::after {
+      top: 0;
+      transform: rotate(-45deg);
+    }
+
+    .menu-btn:active {
+      transform: scale(.97);
+    }
+
+    /* =========================================================
+       03. Premium mobile menu
+       ========================================================= */
+    .menu-backdrop {
+      position: fixed;
+      inset: var(--hdr) 0 0;
+      z-index: 44;
+      background: rgba(2,6,23,.38);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s ease;
+    }
+
+    body.menu-open .menu-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    body.menu-open {
+      overflow: hidden;
+    }
+
+    .mobile-panel {
+      position: fixed;
+      left: 50%;
+      right: auto;
+      top: calc(var(--hdr) + 14px);
+      z-index: 45;
+      width: min(390px, calc(100% - 32px));
+      display: grid;
+      gap: 4px;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(11,18,34,.96), rgba(5,8,16,.98));
+      box-shadow: 0 28px 90px rgba(0,0,0,.52), 0 0 0 1px rgba(125,211,252,.05) inset;
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      transform: translate(-50%, -14px) scale(.98);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease;
+    }
+
+    .mobile-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(34,211,238,.26), rgba(139,92,246,.18), rgba(255,255,255,.08));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .mobile-panel.open {
+      transform: translate(-50%, 0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .mobile-panel a {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 16px;
+      border: 1px solid transparent;
+      border-radius: 15px;
+      color: #d6deeb;
+      background: transparent;
+      font-size: .97rem;
+      font-weight: 780;
+      letter-spacing: -.015em;
+      text-align: center;
+      transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+    }
+
+    .mobile-panel a:hover,
+    .mobile-panel a:focus-visible {
+      color: #fff;
+      background: rgba(255,255,255,.065);
+      border-color: rgba(255,255,255,.09);
+      outline: none;
+    }
+
+    .mobile-panel a:active {
+      transform: scale(.985);
+    }
+
+    /* =========================================================
+       04. Reusable sections
+       ========================================================= */
+    .section {
+      padding: 96px 0;
+    }
+
+    .section-tight {
+      padding: 76px 0;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 18px;
+      padding: 7px 11px;
+      border: 1px solid rgba(125,211,252,.2);
+      border-radius: 999px;
+      background: rgba(125,211,252,.065);
+      color: #c9f6ff;
+      font-size: .72rem;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .kicker::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: #22d3ee;
+      box-shadow: 0 0 18px rgba(34,211,238,.9);
+    }
+
+    h1 {
+      max-width: 720px;
+      font-size: clamp(2.25rem, 4.8vw, 3.85rem);
+      font-weight: 920;
+      line-height: 1.03;
+      letter-spacing: -0.045em;
+      line-height: 1.04;
+    }
+
+    h2 {
+      font-size: clamp(1.55rem, 2.6vw, 2.35rem);
+      font-weight: 880;
+      letter-spacing: -0.022em;
+      line-height: 1.12;
+    }
+
+    h3 {
+      font-size: 1.12rem;
+      letter-spacing: -0.018em;
+      line-height: 1.18;
+    }
+
+    .lead {
+      max-width: 700px;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.35vw, 1.12rem);
+    }
+
+    .grad {
+      background: var(--grad);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn {
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 17px;
+      border: 1px solid transparent;
+      border-radius: 13px;
+      font-weight: 850;
+      letter-spacing: -.01em;
+      transition: .22s;
+    }
+
+    .btn-primary {
+      background: var(--grad);
+      color: #fff;
+      box-shadow: 0 18px 46px rgba(59,130,246,.24), 0 0 42px rgba(34,211,238,.13);
+    }
+
+    .btn-primary:hover,
+    .btn-secondary:hover {
+      transform: translateY(-3px);
+    }
+
+    .btn-secondary {
+      border-color: rgba(255,255,255,.12);
+      background: rgba(255,255,255,.055);
+      color: #eef6ff;
+    }
+
+    .card {
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.038));
+      box-shadow: 0 20px 70px rgba(0,0,0,.26);
+      backdrop-filter: blur(18px);
+    }
+
+    /* =========================================================
+       05. Hero
+       ========================================================= */
+    .hero {
+      position: relative;
+      min-height: auto;
+      display: grid;
+      align-items: center;
+      padding: 58px 0 56px;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 8% -10% auto auto;
+      width: 760px;
+      height: 560px;
+      background: radial-gradient(circle, rgba(34,211,238,.09), transparent 62%);
+      filter: blur(3px);
+      pointer-events: none;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr .92fr;
+      gap: 46px;
+      align-items: center;
+    }
+
+    .hero-copy .lead {
+      max-width: 590px;
+      margin-top: 18px;
+      line-height: 1.58;
+    }
+
+    .trust-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 18px;
+      color: #aebbd0;
+      font-size: .82rem;
+    }
+
+    .trust-strip span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 9px;
+      border: 1px solid rgba(255,255,255,.085);
+      border-radius: 999px;
+      background: rgba(255,255,255,.045);
+    }
+
+    .trust-strip i {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 14px rgba(52,211,153,.7);
+    }
+
+    /* =========================================================
+       06. Hero console
+       ========================================================= */
+    .console-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 470px;
+      justify-self: end;
+    }
+
+    .console-wrap::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      padding: 1px;
+      border-radius: 25px;
+      background: linear-gradient(135deg, rgba(34,211,238,.38), rgba(139,92,246,.26), rgba(255,255,255,.08));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .console {
+      position: relative;
+      overflow: hidden;
+      border-radius: 25px;
+      background: linear-gradient(180deg, rgba(10,16,32,.92), rgba(5,8,16,.94));
+      box-shadow: 0 38px 120px rgba(0,0,0,.44), 0 0 70px rgba(34,211,238,.08);
+    }
+
+    .console-top {
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 15px;
+      border-bottom: 1px solid rgba(255,255,255,.09);
+      background: rgba(255,255,255,.035);
+    }
+
+    .dots {
+      display: flex;
+      gap: 7px;
+    }
+
+    .dots b {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.22);
+    }
+
+    .console-title {
+      color: #9fb1c7;
+      font-size: .75rem;
+      font-weight: 800;
+    }
+
+    .scan {
+      padding: 18px;
+    }
+
+    .domain-input {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      background: rgba(255,255,255,.055);
+      color: #eaf6ff;
+    }
+
+    .domain-input code {
+      color: #c9f6ff;
+      font-size: .9rem;
+    }
+
+    .scan-grid {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .scan-row {
+      display: grid;
+      grid-template-columns: 72px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 11px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      background: rgba(255,255,255,.045);
+    }
+
+    .scan-row strong {
+      font-size: .78rem;
+    }
+
+    .bar {
+      height: 6px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,.085);
+    }
+
+    .bar i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--grad);
+    }
+
+    .badge {
+      padding: 5px 8px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 999px;
+      font-size: .68rem;
+      font-weight: 850;
+    }
+
+    .badge.warn {
+      border-color: rgba(251,113,133,.22);
+      background: rgba(251,113,133,.10);
+      color: #ffd3d9;
+    }
+
+    .badge.ok {
+      border-color: rgba(52,211,153,.22);
+      background: rgba(52,211,153,.10);
+      color: #baf7dc;
+    }
+
+    .verdict {
+      margin-top: 14px;
+      padding: 14px;
+      border: 1px solid rgba(125,211,252,.16);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(34,211,238,.10), rgba(139,92,246,.09));
+    }
+
+    .verdict small {
+      display: block;
+      margin-bottom: 5px;
+      color: #9fb1c7;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .verdict b {
+      font-size: .92rem;
+      line-height: 1.38;
+    }
+
+    /* =========================================================
+       07. Content sections
+       ========================================================= */
+    .band {
+      padding: 22px 0 34px;
+    }
+
+    .band-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .metric {
+      padding: 22px;
+      border: 1px solid rgba(255,255,255,.085);
+      border-radius: 22px;
+      background: rgba(255,255,255,.045);
+    }
+
+    .metric b {
+      display: block;
+      font-size: 1.55rem;
+      letter-spacing: -.05em;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 4px;
+      color: #9aa6b8;
+      font-size: .92rem;
+    }
+
+    .explain-grid,
+    .deliver-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .side-title,
+    .definition,
+    .risk-card,
+    .step,
+    .deliver,
+    .check-card,
+    .contact-card {
+      padding: 28px;
+    }
+
+    .side-title p,
+    .definition p,
+    .risk-card p,
+    .step p,
+    .contact-card p {
+      margin-top: 12px;
+      color: #aebbd0;
+    }
+
+    .rule-box {
+      margin: 16px 0;
+      padding: 18px;
+      overflow: auto;
+      border: 1px solid rgba(125,211,252,.18);
+      border-radius: 18px;
+      background: #050914;
+      color: #c9f6ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: .88rem;
+    }
+
+    .risk-head {
+      margin-bottom: 30px;
+    }
+
+    .risk-head .lead {
+      margin-top: 14px;
+    }
+
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .risk-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .risk-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: linear-gradient(180deg, #fb7185, #8b5cf6);
+    }
+
+    .label {
+      display: inline-flex;
+      margin-bottom: 17px;
+      padding: 6px 9px;
+      border: 1px solid rgba(251,113,133,.20);
+      border-radius: 999px;
+      background: rgba(251,113,133,.10);
+      color: #ffd3d9;
+      font-size: .76rem;
+      font-weight: 850;
+    }
+
+    .process {
+      background: linear-gradient(180deg, rgba(255,255,255,.012), rgba(34,211,238,.022), rgba(255,255,255,.008));
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 38px;
+    }
+
+    .step-num {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 20px;
+      border: 1px solid rgba(125,211,252,.22);
+      border-radius: 14px;
+      background: rgba(125,211,252,.10);
+      color: #c9f6ff;
+      font-weight: 900;
+    }
+
+    .note {
+      max-width: 820px;
+      margin: 28px auto 0;
+      padding: 20px 24px;
+      border: 1px solid rgba(255,255,255,.085);
+      border-radius: 22px;
+      background: rgba(255,255,255,.045);
+      color: #aebbd0;
+      text-align: center;
+    }
+
+    .deliver-grid {
+      margin-top: 34px;
+    }
+
+    .list {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      color: #cbd5e1;
+      list-style: none;
+    }
+
+    .list li::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+      margin-top: 8px;
+      border-radius: 999px;
+      background: #22d3ee;
+      box-shadow: 0 0 16px rgba(34,211,238,.6);
+    }
+
+    .check-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 28px;
+      background: linear-gradient(135deg, rgba(34,211,238,.085), rgba(139,92,246,.075)), rgba(255,255,255,.035);
+    }
+
+    .check-card p {
+      margin-top: 10px;
+      color: #aebbd0;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 34px;
+    }
+
+    .contact-card {
+      text-align: left;
+    }
+
+    .contact-card small {
+      display: block;
+      margin-bottom: 10px;
+      color: #7dd3fc;
+      font-weight: 850;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .contact-card a {
+      display: inline-flex;
+      margin-top: 12px;
+      color: #eef6ff;
+      font-weight: 850;
+    }
+
+    footer {
+      padding: 38px 0;
+      border-top: 1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.12);
+      color: #9aa6b8;
+    }
+
+    footer .wrap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 22px;
+    }
+
+    footer strong {
+      color: #fff;
+    }
+
+    /* =========================================================
+       08. Responsive
+       ========================================================= */
+    @media (max-width: 980px) {
+      .navlinks,
+      .nav-cta {
+        display: none;
+      }
+
+      .menu-btn {
+        display: grid;
+      }
+
+      .hero-grid,
+      .explain-grid,
+      .deliver-grid,
+      .timeline,
+      .risk-grid,
+      .contact-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-grid {
+        gap: 32px;
+      }
+
+      .hero-copy {
+        max-width: 720px;
+      }
+
+      .console-wrap {
+        width: 100%;
+        max-width: 680px;
+        justify-self: start;
+      }
+
+      .console {
+        width: 100%;
+      }
+
+      .band-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .check-card {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      :root {
+        --hdr: 74px;
+      }
+
+        h1 {
+        max-width: 100%;
+        font-size: clamp(1.9rem, 9vw, 2.75rem);
+        line-height: 1.1;
+        letter-spacing: -.04em;
+      }
+
+      .topbar {
+        height: 74px;
+      }
+
+      .wrap {
+        width: calc(100% - 36px);
+      }
+
+      .brand {
+        gap: 10px;
+      }
+
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+      }
+
+      .brand-name {
+        font-size: 1.22rem;
+      }
+
+      .menu-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 17px;
+      }
+
+      .mobile-panel {
+        top: calc(var(--hdr) + 12px);
+        width: calc(100% - 28px);
+        max-width: 360px;
+      }
+
+      .hero {
+        padding: 34px 0 42px;
+      }
+
+      .hero-grid {
+        gap: 28px;
+      }
+
+      .kicker {
+        max-width: 100%;
+        margin-bottom: 20px;
+        padding: 8px 13px;
+        font-size: .68rem;
+        line-height: 1.35;
+      }
+
+      h1 {
+        max-width: 100%;
+        font-size: clamp(2.55rem, 14vw, 4.15rem);
+        line-height: 1.03;
+        letter-spacing: -.06em;
+      }
+
+      .hero-copy .lead {
+        max-width: 100%;
+        margin-top: 18px;
+        font-size: 1.02rem;
+        line-height: 1.55;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .actions .btn {
+        width: 100%;
+      }
+
+      .trust-strip {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .trust-strip span {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 9px 11px;
+      }
+
+      .console-wrap {
+        width: 100%;
+        max-width: 100%;
+        justify-self: stretch;
+      }
+
+      .console,
+      .console-wrap::before {
+        border-radius: 22px;
+      }
+
+      .console-top {
+        height: 44px;
+      }
+
+      .console-title {
+        font-size: .68rem;
+      }
+
+      .scan {
+        padding: 16px;
+      }
+
+      .domain-input {
+        gap: 8px;
+        padding: 12px;
+      }
+
+      .domain-input code {
+        font-size: .88rem;
+        white-space: nowrap;
+      }
+
+      .scan-row {
+        grid-template-columns: 72px 1fr;
+        gap: 10px 12px;
+        padding: 13px;
+      }
+
+      .scan-row .bar {
+        grid-column: 1 / -1;
+        order: 3;
+      }
+
+      .scan-row .badge {
+        justify-self: end;
+        width: auto;
+      }
+
+      .verdict {
+        padding: 15px;
+      }
+
+      .verdict b {
+        font-size: 1rem;
+      }
+
+      .section {
+        padding: 78px 0;
+      }
+
+      .section-tight {
+        padding: 64px 0;
+      }
+
+      .band-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .side-title,
+      .definition,
+      .risk-card,
+      .step,
+      .deliver,
+      .check-card,
+      .contact-card {
+        padding: 24px;
+      }
+    }
+
+    @media (max-width: 390px) {
+      .wrap {
+        width: calc(100% - 28px);
+      }
+
+      .brand-name {
+        font-size: 1.05rem;
+      }
+
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+      }
+
+      .menu-btn {
+        width: 44px;
+        height: 44px;
+      }
+
+      h1 {
+        font-size: clamp(2.35rem, 13.5vw, 3.65rem);
+      }
+
+      .trust-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    
+    .deliver {
+      text-align: left;
+    }
+
+          /* =========================================================
+        PROCESS CARDS FIX
+        ========================================================= */
+
+      .step {
+        text-align: left;
+      }
+
+      .step-num {
+        margin-bottom: 18px;
+      }
+
+      .step h3 {
+        text-align: left;
+        margin: 0;
+      }
+
+      .step p {
+        text-align: left;
+        max-width: 100%;
+      }
+
+      /* =========================================================
+   CONTACT PREMIUM SECTION
+   ========================================================= */
+
+      .contact-premium {
+        position: relative;
+        padding-top: 96px;
+      }
+
+      .contact-premium-grid {
+        display: grid;
+        grid-template-columns: 1.05fr .95fr;
+        gap: 28px;
+        align-items: stretch;
+      }
+
+      .contact-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 42px;
+        text-align: left;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(34,211,238,.13), transparent 34%),
+          radial-gradient(circle at 100% 100%, rgba(139,92,246,.16), transparent 36%),
+          linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+      }
+
+      .contact-panel h2 {
+        margin-top: 4px;
+        font-size: clamp(2rem, 3.4vw, 3.15rem);
+      }
+
+      .contact-lead {
+        max-width: 760px;
+        margin-top: 18px;
+        color: #c7d2e2;
+        font-size: clamp(1.02rem, 1.45vw, 1.22rem);
+        line-height: 1.65;
+      }
+
+      .contact-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .contact-btn {
+        min-height: 58px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 15px 24px;
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 18px;
+        background: rgba(255,255,255,.045);
+        color: #fff;
+        font-weight: 900;
+        letter-spacing: -.02em;
+        transition: transform .22s ease, background .22s ease, border-color .22s ease, box-shadow .22s ease;
+      }
+
+      .contact-btn small {
+        color: #aebbd0;
+        font-size: .78rem;
+        font-weight: 800;
+      }
+
+      .contact-btn:hover {
+        transform: translateY(-3px);
+        background: rgba(255,255,255,.075);
+        border-color: rgba(255,255,255,.20);
+        box-shadow: 0 18px 50px rgba(0,0,0,.25);
+      }
+
+      .contact-btn-primary {
+        border-color: transparent;
+        background: linear-gradient(135deg, #22d3ee 0%, #8b5cf6 55%, #ec4899 100%);
+        color: #03111d;
+        box-shadow: 0 18px 54px rgba(139,92,246,.24), 0 0 42px rgba(34,211,238,.12);
+      }
+
+      .contact-btn-primary:hover {
+        background: linear-gradient(135deg, #67e8f9 0%, #a78bfa 55%, #f472b6 100%);
+      }
+
+      .company-card {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-top: 26px;
+        padding: 20px 22px;
+        border: 1px solid rgba(255,255,255,.11);
+        border-radius: 22px;
+        background: rgba(255,255,255,.045);
+      }
+
+      .company-mark {
+        width: 58px;
+        height: 58px;
+        flex: 0 0 58px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        background:
+          radial-gradient(circle at 30% 20%, rgba(34,211,238,.14), transparent 45%),
+          rgba(255,255,255,.045);
+      }
+
+      .company-card strong {
+        display: block;
+        color: #fff;
+        font-size: 1.08rem;
+        letter-spacing: -.02em;
+      }
+
+      .company-card span {
+        display: block;
+        margin-top: 4px;
+        color: #cbd5e1;
+      }
+
+      .contact-notes {
+        display: grid;
+        gap: 8px;
+        margin-top: 22px;
+        color: #b8c5d8;
+      }
+
+      .contact-notes li {
+        display: flex;
+        gap: 10px;
+        list-style: none;
+        line-height: 1.45;
+      }
+
+      .contact-notes li::before {
+        content: "✓";
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        display: grid;
+        place-items: center;
+        margin-top: 2px;
+        border-radius: 5px;
+        background: rgba(139,92,246,.35);
+        color: #dbeafe;
+        font-size: .75rem;
+        font-weight: 900;
+      }
+
+      .map-panel {
+        min-height: 470px;
+        overflow: hidden;
+        padding: 0;
+        border-radius: 28px;
+        background: rgba(255,255,255,.04);
+      }
+
+      .map-panel iframe {
+        width: 100%;
+        height: 100%;
+        min-height: 470px;
+        display: block;
+        border: 0;
+        filter: saturate(.98) contrast(.98);
+      }
+
+      @media (max-width: 980px) {
+        .contact-premium-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .map-panel,
+        .map-panel iframe {
+          min-height: 380px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .contact-premium {
+          padding-top: 72px;
+        }
+
+        .contact-panel {
+          padding: 26px;
+        }
+
+        .contact-panel h2 {
+          font-size: clamp(1.85rem, 9vw, 2.55rem);
+        }
+
+        .contact-lead {
+          font-size: 1rem;
+        }
+
+        .contact-actions {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .contact-btn {
+          width: 100%;
+          min-height: 54px;
+        }
+
+        .company-card {
+          align-items: flex-start;
+          padding: 18px;
+        }
+
+        .map-panel,
+        .map-panel iframe {
+          min-height: 330px;
+        }
+      }
+
+      /* =========================================================
+   COMPANY LOGO SIZE FIX
+   ========================================================= */
+
+.company-mark {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.08);
+  overflow: hidden;
+}
+
+.company-mark img {
+  width: 34px;
+  height: 34px;
+  max-width: 34px;
+  max-height: 34px;
+  object-fit: contain;
+  display: block;
+}
+
+
+.contact-btn-mail {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  line-height: 1.15;
+}
+
+.btn-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: .8;
+  margin-top: 2px;
+}
+
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--grad);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.16) inset, 0 0 34px rgba(34,211,238,.18);
+  font-size: .83rem;
+  font-weight: 900;
+}
+
+/* =========================================================
+   HEADER LOGO WITHOUT BADGE
+   ========================================================= */
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.brand-logo img {
+  width: 34px;
+  height: 34px;
+  max-width: 34px;
+  max-height: 34px;
+  object-fit: contain;
+  display: block;
+}
+
+/* =========================================================
+   CONTACT BUTTONS ONE LINE
+   ========================================================= */
+
+.contact-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.contact-btn {
+  width: 100%;
+  min-height: 56px;
+  padding: 13px 16px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.contact-btn-mail {
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  line-height: 1.15;
+}
+
+.btn-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: .8;
+  margin-top: 2px;
+}
+
+/* =========================================================
+   DEFENDER LAYER SECTION
+   ========================================================= */
+
+.defender-layer {
+  position: relative;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(34,211,238,.075), transparent 32%),
+    radial-gradient(circle at 90% 30%, rgba(139,92,246,.09), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.012), rgba(255,255,255,.004));
+}
+
+.defender-grid {
+  display: grid;
+  grid-template-columns: .95fr 1.05fr;
+  gap: 28px;
+  align-items: stretch;
+}
+
+.defender-copy {
+  align-self: center;
+}
+
+.defender-copy h2 {
+  max-width: 620px;
+}
+
+.defender-copy .lead {
+  margin-top: 18px;
+  max-width: 620px;
+}
+
+.defender-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.defender-card {
+  position: relative;
+  overflow: hidden;
+  padding: 28px;
+  text-align: left;
+}
+
+.defender-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, #22d3ee, #8b5cf6);
+}
+
+.defender-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border: 1px solid rgba(125,211,252,.22);
+  border-radius: 14px;
+  background: rgba(125,211,252,.10);
+  color: #c9f6ff;
+  font-size: .85rem;
+  font-weight: 900;
+}
+
+.defender-card h3 {
+  margin: 0;
+  text-align: left;
+}
+
+.defender-card p {
+  margin-top: 12px;
+  color: #aebbd0;
+  text-align: left;
+}
+
+.defender-result {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px;
+  background:
+    linear-gradient(135deg, rgba(34,211,238,.085), rgba(139,92,246,.075)),
+    rgba(255,255,255,.035);
+}
+
+.result-label {
+  display: inline-flex;
+  margin-bottom: 10px;
+  color: #7dd3fc;
+  font-size: .78rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.defender-result h3 {
+  max-width: 760px;
+  margin: 0;
+  text-align: left;
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  line-height: 1.2;
+}
+
+@media (max-width: 980px) {
+  .defender-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .defender-result {
+    display: grid;
+  }
+}
+
+@media (max-width: 640px) {
+  .defender-card,
+  .defender-result {
+    padding: 24px;
+  }
+
+  .defender-result .btn {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   DEFENDER SECTION FRAME
+   ========================================================= */
+
+.defender-grid {
+  position: relative;
+  padding: 34px;
+  border: 1px solid rgba(255,255,255,.105);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34,211,238,.10), transparent 30%),
+    radial-gradient(circle at 100% 0%, rgba(139,92,246,.10), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.022));
+  box-shadow:
+    0 28px 90px rgba(0,0,0,.30),
+    0 0 0 1px rgba(125,211,252,.035) inset;
+  overflow: hidden;
+}
+
+.defender-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: 30px;
+  background: linear-gradient(
+    135deg,
+    rgba(34,211,238,.22),
+    rgba(139,92,246,.16),
+    rgba(255,255,255,.06)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.defender-copy,
+.defender-cards,
+.defender-result {
+  position: relative;
+  z-index: 1;
+}
+
+/* =========================================================
+   FIRMA
+   ========================================================= */
+
+   .company-section {
+  position: relative;
+  overflow: hidden;
+}
+
+.company-section::before {
+  content: "";
+  position: absolute;
+  inset: auto -20% 5% auto;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(88, 166, 255, .16), transparent 68%);
+  pointer-events: none;
+}
+
+.company-card {
+  position: relative;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.025)),
+    rgba(255,255,255,.035);
+  border-radius: 32px;
+  padding: clamp(28px, 4vw, 54px);
+  box-shadow: 0 30px 90px rgba(0,0,0,.28);
+  overflow: hidden;
+}
+
+.company-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.06), transparent 35%),
+    radial-gradient(circle at 80% 20%, rgba(111, 66, 193, .22), transparent 34%);
+  pointer-events: none;
+}
+
+.company-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+}
+
+.company-logo {
+  display: block;
+  width: 100%;
+  max-width: 180px;
+  height: auto;
+}
+
+
+.company-title {
+  max-width: 720px;
+  margin: 12px 0 18px;
+  font-size: clamp(2rem, 3.4vw, 3.35rem);
+  line-height: .98;
+  letter-spacing: -0.018em;
+  line-height: 1.05;
+
+}
+
+.company-lead {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.15vw, 1.1rem);
+  line-height: 1.75;
+}
+
+.company-lead + .company-lead {
+  margin-top: 14px;
+}
+
+.company-lead.muted {
+  opacity: .86;
+}
+
+.company-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 28px;
+  max-width: 620px;
+}
+
+.company-kpi {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.045);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.company-kpi span {
+  display: block;
+  color: var(--muted);
+  font-size: .78rem;
+  margin-bottom: 5px;
+}
+
+.company-kpi strong {
+  display: block;
+  color: var(--text);
+  font-size: .98rem;
+  letter-spacing: -0.02em;
+}
+
+.company-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.company-panel {
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.03));
+  border-radius: 26px;
+  padding: clamp(20px, 3vw, 30px);
+}
+
+.company-panel-title {
+  margin-bottom: 18px;
+  color: var(--text);
+  font-size: .95rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.company-badges {
+  display: grid;
+  gap: 12px;
+}
+
+.company-badge {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 14px;
+  align-items: start;
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.04);
+  border-radius: 18px;
+  padding: 16px;
+  transition: transform .2s ease, border-color .2s ease, background .2s ease;
+}
+
+.company-badge:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.065);
+}
+
+.company-badge-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(88,166,255,.22), rgba(111,66,193,.22));
+  color: var(--text);
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+.company-badge h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.company-badge p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .92rem;
+  line-height: 1.45;
+}
+
+
+@media (max-width: 640px) {
+  .company-title {
+    font-size: clamp(1.75rem, 8.2vw, 2.3rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* =========================================================
+   COMPANY SECTION — MOBILE FIX FINAL
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .company-section .company-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 28px !important;
+    align-items: stretch !important;
+  }
+
+  .company-section .company-left,
+  .company-section .company-right {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .company-section .company-title,
+  .company-section .company-lead {
+    max-width: 100% !important;
+  }
+}
+
+/* =========================================================
+   SAAS FOOTER
+   ========================================================= */
+
+.footer-saas {
+  position: relative;
+  overflow: hidden;
+  padding: 72px 0 28px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(34,211,238,.08), transparent 32%),
+    radial-gradient(circle at 90% 20%, rgba(139,92,246,.10), transparent 36%),
+    linear-gradient(180deg, rgba(255,255,255,.018), rgba(0,0,0,.18));
+  color: var(--muted);
+}
+
+.footer-saas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+  background-size: 80px 80px;
+  opacity: .18;
+  mask-image: linear-gradient(180deg, black 0%, transparent 72%);
+}
+
+.footer-saas-grid,
+.footer-saas-bottom {
+  position: relative;
+  z-index: 1;
+}
+
+.footer-saas-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(520px, .95fr);
+  gap: clamp(36px, 7vw, 90px);
+  align-items: start;
+}
+
+.footer-saas-brand {
+  max-width: 520px;
+}
+
+.footer-brandline {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 1.08rem;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+.footer-logo {
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
+}
+
+.footer-desc {
+  max-width: 520px;
+  margin-top: 18px;
+  color: #aebbd0;
+  font-size: .98rem;
+  line-height: 1.7;
+}
+
+.footer-saas-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.footer-col {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.footer-col-title {
+  margin-bottom: 6px;
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.footer-col a {
+  width: fit-content;
+  color: #9aa6b8;
+  font-size: .94rem;
+  font-weight: 650;
+  line-height: 1.35;
+  transition: color .18s ease, transform .18s ease;
+}
+
+.footer-col a:hover {
+  color: #fff;
+  transform: translateX(2px);
+}
+
+.footer-saas-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 54px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  color: #7f8da3;
+  font-size: .9rem;
+}
+
+.footer-link-clean {
+  color: #aebbd0;
+  font-weight: 750;
+}
+
+.footer-link-clean:hover {
+  color: #fff;
+}
+
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="wrap nav">
+      <a class="brand" href="#top" aria-label="DMARC Majster">
+        
+          <span class="brand-mark brand-logo">
+            <img src="logo-32.png" alt="Valcreon">
+          </span>
+
+        <span class="brand-name">DMARC<span>.</span>majster</span>
+      </a>
+
+      <nav class="navlinks" aria-label="Menu główne">
+        <a href="#problem">Ryzyko</a>
+        <a href="#co-to">DMARC</a>
+        <a href="#proces">Proces</a>
+        <a href="#sprawdz">Sprawdź</a>
+        <a href="#kontakt">Kontakt</a>
+      </nav>
+
+      <div class="nav-cta">
+        <a class="cta-small" href="#kontakt">Sprawdź domenę</a>
+      </div>
+
+      <button class="menu-btn" id="menuBtn" aria-label="Otwórz menu" aria-expanded="false">
+        <span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="menu-backdrop" id="menuBackdrop" aria-hidden="true"></div>
+
+  <nav class="mobile-panel" id="mobilePanel" aria-label="Menu mobilne">
+    <a href="#problem">Ryzyko</a>
+    <a href="#co-to">DMARC</a>
+    <a href="#proces">Proces</a>
+    <a href="#sprawdz">Sprawdź</a>
+    <a href="#kontakt">Kontakt</a>
+  </nav>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <span class="kicker reveal">Bezpieczeństwo poczty firmowej</span>
+          <h1 class="reveal">Sprawdź, czy ktoś może <span class="grad">podszyć się pod Twoją firmę w e-mailu</span></h1>
+          <p class="lead reveal">Zweryfikujemy zabezpieczenia Twojej domeny e-mail i pokażemy, czy przestępcy mogą wysyłać wiadomości wyglądające jak od Twojej firmy.
+          </p>
+
+          <div class="actions reveal">
+            <a class="btn btn-primary" href="#kontakt">Sprawdź domenę</a>
+            <a class="btn btn-secondary" href="#problem">Zobacz ryzyko</a>
+          </div>
+
+          <div class="trust-strip reveal" aria-label="Zakres usługi">
+            <span><i></i>DMARC</span>
+            <span><i></i>SPF</span>
+            <span><i></i>DKIM</span>
+            <span><i></i>Microsoft 365</span>
+          </div>
+        </div>
+
+        <div class="console-wrap reveal" aria-label="Panel analizy domeny">
+          <div class="console">
+            <div class="console-top">
+              <div class="dots"><b></b><b></b><b></b></div>
+              <div class="console-title">analiza bezpieczeństwa poczty</div>
+            </div>
+
+            <div class="scan">
+              <div class="domain-input">
+                <span class="muted">domena</span>
+                <code>twojafirma.pl</code>
+              </div>
+
+              <div class="scan-grid">
+                <div class="scan-row">
+                  <strong>DMARC</strong>
+                  <div class="bar"><i style="width:32%"></i></div>
+                  <span class="badge warn">brak ochrony</span>
+                </div>
+
+                <div class="scan-row">
+                  <strong>SPF</strong>
+                  <div class="bar"><i style="width:68%"></i></div>
+                  <span class="badge ok">do korekty</span>
+                </div>
+
+                <div class="scan-row">
+                  <strong>DKIM</strong>
+                  <div class="bar"><i style="width:54%"></i></div>
+                  <span class="badge ok">sprawdzamy</span>
+                </div>
+              </div>
+
+              <div class="verdict">
+                <small>Wynik</small>
+                <b>Domena wymaga uporządkowania przed zaostrzeniem polityki DMARC.</b>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="problem">
+      <div class="wrap band-grid reveal">
+        <div class="metric"><b>01</b><span>podszywanie się pod firmę</span></div>
+        <div class="metric"><b>02</b><span>fałszywe faktury i linki</span></div>
+        <div class="metric"><b>03</b><span>gorsza dostarczalność poczty</span></div>
+        <div class="metric"><b>04</b><span>utrata zaufania klientów</span></div>
+      </div>
+    </section>
+
+    <section class="section" id="co-to">
+      <div class="wrap explain-grid">
+        <div class="card side-title reveal">
+          <span class="kicker">DMARC bez żargonu</span>
+          <h2>DMARC pomaga odróżnić prawdziwy e-mail od fałszywego</h2>
+          <p>
+          Dzięki DMARC serwery pocztowe wiedzą, co zrobić z wiadomością, która wygląda jak wysłana przez Twoją firmę, ale nią nie jest.
+          </p>
+        </div>
+
+        <div class="card definition reveal">
+          <p><strong>DMARC</strong> mówi serwerom pocztowym: sprawdź, czy wiadomość naprawdę pochodzi z uprawnionego systemu. Jeśli nie, oznacz ją, odrzuć albo zablokuj.</p>
+          <div class="rule-box">_dmarc.twojafirma.pl TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@twojafirma.pl"</div>
+          <p>Najpierw robimy bezpieczną analizę. Dopiero potem zaostrzamy politykę, żeby nie zepsuć legalnej wysyłki z fakturowni, CRM, newslettera albo systemu kadrowego.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-tight">
+      <div class="wrap">
+        <div class="risk-head">
+          <span class="kicker reveal">Ryzyko biznesowe</span>
+          <h2 class="reveal">Co tracisz, gdy domena nie jest chroniona</h2>
+          <p class="lead reveal">To nie jest abstrakcyjny problem DNS. To bezpośrednio dotyczy faktur, ofert, umów i zaufania do firmy.</p>
+        </div>
+
+        <div class="risk-grid">
+          <article class="card risk-card reveal">
+            <span class="label">podszycie</span>
+            <h3>Ktoś wysyła maila jako Twoja firma</h3>
+            <p>Odbiorca widzi znajomą domenę i może uwierzyć w fałszywą fakturę, zmianę numeru konta albo link do logowania.</p>
+          </article>
+
+          <article class="card risk-card reveal">
+            <span class="label">dostarczalność</span>
+            <h3>Twoje prawdziwe maile mogą trafiać do spamu</h3>
+            <p>Brak spójnych rekordów SPF, DKIM i DMARC obniża wiarygodność domeny u dużych dostawców poczty.</p>
+          </article>
+
+          <article class="card risk-card reveal">
+            <span class="label">wizerunek</span>
+            <h3>Klient widzi problem po Twojej stronie</h3>
+            <p>Nawet jeśli atak nie wyszedł od Ciebie, klient kojarzy go z Twoją domeną i Twoją marką.</p>
+          </article>
+
+          <article class="card risk-card reveal">
+            <span class="label">kontrola</span>
+            <h3>Nie wiesz, kto wysyła pocztę z domeny</h3>
+            <p>Raporty DMARC pokazują legalne i podejrzane źródła wysyłki. Bez nich działasz na ślepo.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section process" id="proces">
+      <div class="wrap center">
+        <span class="kicker reveal">Proces wdrożenia</span>
+        <h2 class="reveal">Najpierw sprawdzamy, potem bezpiecznie włączamy ochronę</h2>
+        <p class="lead reveal" style="margin:16px auto 0">Najpierw sprawdzamy, skąd firma wysyła e-maile. Dopiero potem ustawiamy ochronę tak, aby ograniczyć podszywanie się pod domenę i nie blokować legalnych wiadomości.
+        </p>
+
+        <div class="timeline">
+          <article class="card step reveal">
+            <div class="step-num">1</div>
+            <h3>Audyt domeny</h3>
+            <p>Sprawdzamy DMARC, SPF, DKIM, DNS i źródła wysyłki. Wskazujemy, co jest ryzykowne.</p>
+          </article>
+
+          <article class="card step reveal">
+            <div class="step-num">2</div>
+            <h3>Konfiguracja</h3>
+            <p>Porządkujemy rekordy i ustawienia dla Microsoft 365 oraz systemów wysyłających pocztę.</p>
+          </article>
+
+          <article class="card step reveal">
+            <div class="step-num">3</div>
+            <h3>Polityka ochrony</h3>
+            <p>Po weryfikacji przechodzimy od monitoringu do realnej ochrony przed podszywaniem.</p>
+          </article>
+        </div>
+
+        <p class="note reveal">Jeśli poczta działa na starym hostingu, możemy przenieść ją do Microsoft 365 i uporządkować zabezpieczenia od podstaw.</p>
+      </div>
+    </section>
+
+    <section class="section defender-layer" id="defender">
+  <div class="wrap defender-grid">
+    <div class="defender-copy reveal">
+      <span class="kicker">Wyższy poziom ochrony</span>
+
+      <h2>DMARC to fundament. Defender chroni przed tym, co jest w środku wiadomości.</h2>
+
+      <p class="lead">
+        Domena może być poprawnie zabezpieczona, ale użytkownik nadal może dostać
+        niebezpieczny załącznik albo kliknąć link prowadzący do fałszywego logowania.
+        Dlatego kolejny poziom ochrony daje Microsoft Defender for Office 365.
+      </p>
+    </div>
+
+      <div class="defender-cards reveal">
+        <article class="card defender-card">
+          <div class="defender-icon">01</div>
+          <h3>Bezpieczne załączniki</h3>
+          <p>
+            Podejrzane pliki mogą być sprawdzane w odizolowanym środowisku,
+            zanim trafią do użytkownika. To pomaga zatrzymać malware,
+            ransomware i dokumenty z ukrytym kodem.
+          </p>
+        </article>
+
+        <article class="card defender-card">
+          <div class="defender-icon">02</div>
+          <h3>Bezpieczne linki</h3>
+          <p>
+            Linki są sprawdzane nie tylko przy dostarczeniu wiadomości,
+            ale także w momencie kliknięcia. To ważne, bo część ataków
+            aktywuje złośliwy adres dopiero po czasie.
+          </p>
+        </article>
+      </div>
+
+      <div class="card defender-result reveal">
+        <div>
+          <span class="result-label">Efekt</span>
+          <h3>Lepsza ochrona przed phishingiem, złośliwymi plikami i fałszywymi stronami logowania.</h3>
+        </div>
+
+        <a class="btn btn-primary"
+          href="#kontakt">
+          Zapytaj o konfigurację Defender
+        </a>
+      </div>
+    </div>
+  </section>
+
+    <section class="section-tight">
+      <div class="wrap center">
+        <span class="kicker reveal">Co dostajesz</span>
+        <h2 class="reveal">Konkretne ustawienia, nie prezentację</h2>
+
+        <div class="deliver-grid">
+          <article class="card deliver reveal">
+            <h3>Zakres techniczny</h3>
+            <ul class="list">
+              <li>analiza aktualnych rekordów DNS</li>
+              <li>konfiguracja SPF, DKIM i DMARC</li>
+              <li>weryfikacja źródeł wysyłki poczty</li>
+              <li>rekomendacja polityki DMARC</li>
+            </ul>
+          </article>
+
+          <article class="card deliver reveal">
+            <h3>Dla firmy</h3>
+            <ul class="list">
+              <li>czytelny opis ryzyka dla właściciela</li>
+              <li>mniej szans na fałszywe wiadomości z domeny</li>
+              <li>lepsza wiarygodność poczty u odbiorców</li>
+              <li>możliwość wdrożenia podpisów e-mail</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-tight" id="sprawdz">
+      <div class="wrap">
+        <div class="card check-card reveal">
+          <div>
+            <span class="kicker">Szybki test</span>
+            <h2>Zobacz, czy masz DMARC</h2>
+            <p>Możesz samodzielnie sprawdzić domenę w dmarcian.com. Jeśli wynik jest czerwony albo niejasny, pomożemy go przełożyć na konkretne działania.</p>
+          </div>
+          <a class="btn btn-primary" href="https://dmarcian.com/" target="_blank" rel="noopener noreferrer">Sprawdź na dmarcian.com</a>
+        </div>
+      </div>
+    </section>
+
+
+        <section class="section company-section" id="firma">
+      <div class="wrap">
+        <div class="company-card reveal">
+
+          <div class="company-grid">
+
+            <!-- LEFT -->
+
+              <div class="company-left">
+
+                <div class="company-logoWrap">
+                  <img
+                    src="logo-full.png"
+                    alt="Valcreon"
+                    class="company-logo"
+                    loading="lazy"
+                  >
+                </div>
+
+                  <h2 class="company-title">
+                  Valcreon specjalizuje się w zabezpieczeniach Microsoft 365 dla firm.
+                </h2>
+
+
+
+              <p class="company-lead">
+                Pomagamy małym i średnim firmom ograniczyć ryzyko przejęcia kont,
+                phishingu i nieuprawnionego dostępu do danych. Zabezpieczamy
+                tożsamość, pocztę, urządzenia i dane w Microsoft 365.
+              </p>
+
+              <p class="company-lead muted">
+                Działamy praktycznie: sprawdzamy aktualny stan zabezpieczeń,
+                wskazujemy ryzyka i wdrażamy zmiany bez zbędnych przestojów
+                dla użytkowników.
+              </p>
+
+              <div class="company-kpis">
+                <div class="company-kpi">
+                  <span>Zakres</span>
+                  <strong>Microsoft 365</strong>
+                </div>
+
+                <div class="company-kpi">
+                  <span>Podejście</span>
+                  <strong>Zero Trust</strong>
+                </div>
+
+                <div class="company-kpi">
+                  <span>Kraj</span>
+                  <strong>Polska</strong>
+                </div>
+              </div>
+
+              <div class="company-actions">
+                <a class="btn btn-primary" href="#kontakt">
+                  Porozmawiajmy
+                </a>
+
+              </div>
+            </div>
+
+            <!-- RIGHT -->
+            <div class="company-right">
+              <div class="company-panel">
+                <div class="company-panel-title">
+                  Dlaczego firmy wybierają Valcreon
+                </div>
+
+                <div class="company-badges">
+
+                  <div class="company-badge">
+                    <div class="company-badge-icon">01</div>
+                    <div>
+                      <h3>Przejrzysty proces</h3>
+                      <p>audyt → plan → wdrożenie → utrzymanie</p>
+                    </div>
+                  </div>
+
+                  <div class="company-badge">
+                    <div class="company-badge-icon">02</div>
+                    <div>
+                      <h3>Mniejsze ryzyko incydentów</h3>
+                      <p>ograniczamy phishing, przejęcia kont i błędy konfiguracji</p>
+                    </div>
+                  </div>
+
+                  <div class="company-badge">
+                    <div class="company-badge-icon">03</div>
+                    <div>
+                      <h3>Bezpieczne zmiany</h3>
+                      <p>wdrożenia prowadzone etapami, bez chaosu dla użytkowników</p>
+                    </div>
+                  </div>
+
+                  <div class="company-badge">
+                    <div class="company-badge-icon">04</div>
+                    <div>
+                      <h3>Widoczność i kontrola</h3>
+                      <p>wiesz kto, gdzie i w jaki sposób ma dostęp do danych</p>
+                    </div>
+                  </div>
+
+                  <div class="company-badge">
+                    <div class="company-badge-icon">05</div>
+                    <div>
+                      <h3>Gotowość na audyt</h3>
+                      <p>polityki, logi i dokumentacja są uporządkowane</p>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+
+    <section class="section contact-premium" id="kontakt">
+  <div class="wrap contact-premium-grid">
+    <div class="contact-panel card reveal">
+      <span class="kicker">Kontakt</span>
+
+      <h2>Sprawdźmy Twoją domenę</h2>
+
+      <p class="contact-lead">
+        Najszybciej: umów 15 minut albo kliknij w gotowy e-mail.
+        Działamy bez formularzy. Odpowiadamy konkretnie: co trzeba poprawić i od czego zacząć.
+      </p>
+
+      <div class="contact-actions">
+        <a class="contact-btn contact-btn-primary"
+           href="https://bookings.cloud.microsoft/book/RedFlag1@redflag.com.pl"
+           target="_blank"
+           rel="noopener noreferrer">
+          Umów 15 min
+        </a>
+
+        <a class="contact-btn"
+           href="mailto:msp@valcreon.com?subject=DMARC%20-%20sprawdzenie%20domeny&body=Dzie%C5%84%20dobry%2C%0A%0AProsz%C4%99%20o%20sprawdzenie%20DMARC%20dla%20domeny%3A%0ANazwa%20firmy%3A%0ANIP%3A%0AKontakt%3A%0A%0APozdrawiam">
+          Napisz e-mail
+          <span class="btn-sub">1 klik • e‑mail</span>
+                  </a>
+
+        <a class="contact-btn"
+           href="tel:+48221525060">
+          +48 22 152 50 60
+        </a>
+      </div>
+
+        <div class="company-card">
+          <div class="company-mark" aria-hidden="true">
+
+              <div class="company-mark">
+                <img src="logo-300.png" alt="Valcreon">
+              </div>
+
+          </div>
+
+          <div>
+            <strong>Valcreon Sp. z o.o.</strong>
+            <span>Plac Europejski 2, 00-844 Warszawa</span>
+          </div>
+        </div>
+
+        <ul class="contact-notes">
+          <li>Umów 15 minut - przejdziesz od razu do rezerwacji terminu.</li>
+          <li>Link e-mail zawiera gotową treść, wystarczy wpisać domenę.</li>
+          <li>Telefon - jeśli chcesz omówić temat od razu.</li>
+        </ul>
+      </div>
+
+      <div class="map-panel card reveal">
+        <iframe
+          title="Mapa Google - Plac Europejski 2, Warszawa"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          src="https://www.google.com/maps?q=Plac%20Europejski%202%2C%2000-844%20Warszawa&output=embed">
+        </iframe>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <footer class="footer-saas">
+    <div class="wrap footer-saas-grid">
+
+      <!-- Brand -->
+      <div class="footer-saas-brand">
+        <a href="#top" class="footer-brandline" aria-label="Valcreon">
+          <img
+            src="logo-32.png"
+            alt="Valcreon"
+            class="footer-logo"
+            loading="lazy"
+          >
+          <span>Valcreon</span>
+        </a>
+
+        <p class="footer-desc">
+          Zabezpieczenia Microsoft 365 dla małych i średnich firm.
+          Pomagamy ograniczyć ryzyko phishingu, przejęcia kont i podszywania się pod domenę.
+        </p>
+      </div>
+
+      <!-- Links -->
+      <nav class="footer-saas-links" aria-label="Linki w stopce">
+
+        <div class="footer-col">
+          <span class="footer-col-title">Usługi</span>
+          <a href="#co-to">DMARC</a>
+          <a href="#security">Microsoft 365 Security</a>
+          <a href="#defender">Defender for Office 365</a>
+        </div>
+
+        <div class="footer-col">
+          <span class="footer-col-title">Strona</span>
+          <a href="#proces">Proces</a>
+          <a href="#firma">O firmie</a>
+          <a href="#faq">FAQ</a>
+        </div>
+
+        <div class="footer-col">
+          <span class="footer-col-title">Kontakt</span>
+          <a href="mailto:msp@valcreon.com">msp@valcreon.com</a>
+          <a href="tel:+48221525060">+48 22 152 50 60</a>
+          <a
+            href="https://bookings.cloud.microsoft/book/RedFlag1@redflag.com.pl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Umów rozmowę
+          </a>
+        </div>
+
+      </nav>
+    </div>
+
+    <div class="wrap footer-saas-bottom">
+      <span>© <span id="current-year"></span> Valcreon Sp. z o.o.</span>
+
+      <a
+        href="https://valcreon.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="footer-link-clean"
+      >
+        valcreon.com
+      </a>
+    </div>
+  </footer>
+
+  <script>
+    const menuBtn = document.getElementById('menuBtn');
+    const mobilePanel = document.getElementById('mobilePanel');
+    const menuBackdrop = document.getElementById('menuBackdrop');
+
+    function openMenu(){
+      mobilePanel.classList.add('open');
+      menuBtn.classList.add('active');
+      document.body.classList.add('menu-open');
+      menuBtn.setAttribute('aria-expanded','true');
+    }
+
+    function closeMenu(){
+      mobilePanel.classList.remove('open');
+      menuBtn.classList.remove('active');
+      document.body.classList.remove('menu-open');
+      menuBtn.setAttribute('aria-expanded','false');
+    }
+
+    function toggleMenu(){
+      if(mobilePanel.classList.contains('open')){
+        closeMenu();
+      }else{
+        openMenu();
+      }
+    }
+
+    menuBtn.addEventListener('click', function(event){
+      event.stopPropagation();
+      toggleMenu();
+    });
+
+    mobilePanel.addEventListener('click', function(event){
+      event.stopPropagation();
+    });
+
+    menuBackdrop.addEventListener('click', closeMenu);
+
+    document.addEventListener('click', function(event){
+      if(!mobilePanel.classList.contains('open')) return;
+      if(!mobilePanel.contains(event.target) && !menuBtn.contains(event.target)){
+        closeMenu();
+      }
+    });
+
+    document.addEventListener('keydown', function(event){
+      if(event.key === 'Escape'){
+        closeMenu();
+      }
+    });
+
+    document.querySelectorAll('.mobile-panel a').forEach(function(link){
+      link.addEventListener('click', closeMenu);
+    });
+
+    const io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          entry.target.classList.add('visible');
+          io.unobserve(entry.target);
+        }
+      });
+    },{threshold:.12});
+
+    document.querySelectorAll('.reveal').forEach(function(element){
+      io.observe(element);
+
+
+    document.getElementById("current-year").textContent = new Date().getFullYear();
+
+
+    });
+  </script>
+</body>
+</html>
